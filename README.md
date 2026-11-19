@@ -8,7 +8,7 @@ Tools for downloading the EPG (Electronic Program Guide) for thousands of TV cha
 - 🚀 [Usage](#usage)
 - 💫 [Update](#update)
 - 🐋 [Docker](#docker)
-- 📺 [Playlists](#playlists)
+- 📅 [Guides](#guides)
 - 🗄 [Database](#database)
 - 👨‍💻 [API](#api)
 - 📚 [Resources](#resources)
@@ -26,7 +26,7 @@ After that open the [Console](https://en.wikipedia.org/wiki/Windows_Console) (or
 git clone --depth 1 -b master https://github.com/iptv-org/epg.git
 ```
 
-Then navigate to the downloaded `epg` folder:
+This will copy all the code from the repository to your computer into the `epg` folder. After that, we just need to go to the folder we created:
 
 ```sh
 cd epg
@@ -43,7 +43,7 @@ npm install
 To start the download of the guide, select one of the supported sites from [SITES.md](SITES.md) file and paste its name into the command below:
 
 ```sh
-npm run grab --- --site=example.com
+npm run grab --- --sites=example.com
 ```
 
 Then run it and wait for the guide to finish downloading. When finished, a new `guide.xml` file will appear in the current directory.
@@ -54,18 +54,33 @@ You can also customize the behavior of the script using this options:
 Usage: npm run grab --- [options]
 
 Options:
-  -s, --site <name>             Name of the site to parse
-  -c, --channels <path>         Path to *.channels.xml file (required if the "--site" attribute is
+  -s, --sites <names>           A comma-separated list of the sites to parse
+  -c, --channels <path>         Path to *.channels.xml file (required if the "--sites" attribute is
                                 not specified)
   -o, --output <path>           Path to output file (default: "guide.xml")
   -l, --lang <codes>            Allows you to restrict downloading to channels in specified languages only (example: "en,id")
-  -t, --timeout <milliseconds>  Timeout for each request in milliseconds (default: 0)
+  -t, --timeout <milliseconds>  Timeout for each request in milliseconds (default: 30000)
   -d, --delay <milliseconds>    Delay between request in milliseconds (default: 0)
   -x, --proxy <url>             Use the specified proxy (example: "socks5://username:password@127.0.0.1:1234")
   --days <days>                 Number of days for which the program will be loaded (defaults to the value from the site config)
   --maxConnections <number>     Number of concurrent requests (default: 1)
-  --gzip                        Specifies whether or not to create a compressed version of the guide (default: false)
+  --gzip [path]                 Specifies whether or not to create a compressed version of the guide (default: false)
+  --json [path]                 Specifies whether or not to create a JSON version of the guide (default: false)
   --curl                        Display each request as CURL (default: false)
+```
+
+### Downloading from multiple sites at once
+
+To do this, simply list the site names separated by commas:
+
+```sh
+npm run grab --- --sites=example1.com,example2.com
+```
+
+To avoid mixing guides from different sites into a single output file, we can also automatically split the output into separate files based on the site name:
+
+```sh
+npm run grab --- --sites=example1.com,example2.com --output=guides/{site}.xml
 ```
 
 ### Parallel downloading
@@ -73,10 +88,10 @@ Options:
 By default, the guide for each channel is downloaded one by one, but you can change this behavior by increasing the number of simultaneous requests using the `--maxConnections` attribute:
 
 ```sh
-npm run grab --- --site=example.com --maxConnections=10
+npm run grab --- --sites=example.com --maxConnections=10
 ```
 
-But be aware that under heavy load, some sites may start return an error or completely block your access.
+But be aware that under heavy load some sites may start return an error or completely block your access.
 
 ### Use custom channel list
 
@@ -98,12 +113,12 @@ npm run grab --- --channels=path/to/custom.channels.xml
 
 ### Run on schedule
 
-If you want to download guides on a schedule, you can use [cron](https://en.wikipedia.org/wiki/Cron) or any other task scheduler. Currently, we use a tool called `chronos` for this purpose.
+If you want to download guides on a schedule, you can use [cron](https://en.wikipedia.org/wiki/Cron) or any other task scheduler. Currently, we use a tool called [chronos](https://github.com/freearhey/chronos) for this purpose.
 
 To start it, you only need to specify the necessary `grab` command and [cron expression](https://crontab.guru/):
 
 ```sh
-npx chronos --execute="npm run grab --- --site=example.com" --pattern="0 0,12 * * *" --log
+npx chronos --execute="npm run grab --- --sites=example.com" --pattern="0 0,12 * * *" --log
 ```
 
 For more info go to [chronos](https://github.com/freearhey/chronos) documentation.
@@ -146,16 +161,16 @@ npm install
 
 ## Docker
 
-### Build an image
+### Pull an image
 
 ```sh
-docker build -t iptv-org/epg --no-cache .
+docker pull ghcr.io/iptv-org/epg:master
 ```
 
 ### Create and run container
 
 ```sh
-docker run -p 3000:3000 -v /path/to/channels.xml:/epg/channels.xml iptv-org/epg
+docker run -p 3000:3000 -v /path/to/channels.xml:/epg/public/channels.xml ghcr.io/iptv-org/epg:master
 ```
 
 By default, the guide will be downloaded every day at 00:00 UTC and saved to the `/epg/public/guide.xml` file inside the container.
@@ -179,16 +194,18 @@ To fine-tune the execution, you can pass environment variables to the container 
 ```sh
 docker run \
 -p 5000:3000 \
--v /path/to/channels.xml:/epg/channels.xml \
+-v /path/to/channels.xml:/epg/public/channels.xml \
 -e CRON_SCHEDULE="0 0,12 * * *" \
 -e MAX_CONNECTIONS=10 \
 -e GZIP=true \
+-e JSON=true \
 -e CURL=true \
 -e PROXY="socks5://127.0.0.1:1234" \
 -e DAYS=14 \
 -e TIMEOUT=5 \
 -e DELAY=2 \
-iptv-org/epg
+-e RUN_AT_STARTUP=true \
+ghcr.io/iptv-org/epg:master
 ```
 
 | Variable        | Description                                                                                                        |
@@ -196,12 +213,17 @@ iptv-org/epg
 | CRON_SCHEDULE   | A [cron expression](https://crontab.guru/) describing the schedule of the guide loadings (default: "0 0 \* \* \*") |
 | MAX_CONNECTIONS | Limit on the number of concurrent requests (default: 1)                                                            |
 | GZIP            | Boolean value indicating whether to create a compressed version of the guide (default: false)                      |
+| JSON            | Boolean value indicating whether to create a JSON version of the guide (default: false)                            |
 | CURL            | Display each request as CURL (default: false)                                                                      |
 | PROXY           | Use the specified proxy                                                                                            |
 | DAYS            | Number of days for which the guide will be loaded (defaults to the value from the site config)                     |
-| TIMEOUT         | Timeout for each request in milliseconds (default: 0)                                                              |
+| TIMEOUT         | Timeout for each request in milliseconds (default: 30000)                                                          |
 | DELAY           | Delay between request in milliseconds (default: 0)                                                                 |
-| RUN_AT_STARTUP  | Run grab on container startup (default: true)                                                                 |
+| RUN_AT_STARTUP  | Run grab on container startup (default: true)                                                                      |
+
+## Guides
+
+Any user can share the guides they have created with the rest of the community. A complete list of these guides and their current status can be found in the [GUIDES.md](GUIDES.md) file.
 
 ## Database
 

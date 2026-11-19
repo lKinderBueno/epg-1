@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "strict": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "target": "es2022",
     "esModuleInterop": true,
     "declaration": true,
@@ -13,6 +13,12 @@
     "allowJs": true,
     "outDir": "./dist"
   },
-  "include": ["scripts/**/*", "src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "scripts/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

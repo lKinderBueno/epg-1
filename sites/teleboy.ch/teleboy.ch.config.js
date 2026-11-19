@@ -13,13 +13,16 @@ module.exports = {
   },
   request: {
     headers: {
-      'x-teleboy-apikey': API_KEY
+      'x-teleboy-apikey': API_KEY,
+      'User-Agent': 'Mozilla/5.0'
     }
   },
   parser({ content }) {
     const items = parseItems(content)
 
     return items.map(item => {
+      const image = parseImage(item)
+
       return {
         start: dayjs(item.begin),
         stop: dayjs(item.end),
@@ -30,7 +33,8 @@ module.exports = {
         season: item.serie_season || null,
         episode: item.serie_episode || null,
         starRatings: parseRating(item),
-        image: parseImage(item)
+        image,
+        icon: image
       }
     })
   },

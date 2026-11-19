@@ -5,15 +5,13 @@ const utc = require('dayjs/plugin/utc')
 const timezone = require('dayjs/plugin/timezone')
 const customParseFormat = require('dayjs/plugin/customParseFormat')
 const doFetch = require('@ntlab/sfetch')
-const debug = require('debug')('site:tivie.id')
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.extend(customParseFormat)
 
-doFetch.setDebugger(debug)
-
 const tz = 'Asia/Jakarta'
+let $
 
 module.exports = {
   site: 'tivie.id',
@@ -24,7 +22,7 @@ module.exports = {
   async parser({ content, date }) {
     const programs = []
     if (content) {
-      const $ = cheerio.load(content)
+      $ = cheerio.load(content)
       const items = $('ul[x-data] > li[id*="event-"] > div.w-full')
         .toArray()
         .map(item => {
@@ -37,10 +35,11 @@ module.exports = {
           }
           if (detail.length) {
             const subtitle = detail.find('div')
-            p.title = parseText(subtitle.length ? subtitle : detail)
+            p.title = parseText(subtitle.length ? prune(subtitle, '.sr-only') :
+              prune(detail, '.sr-only'))
             p.url = detail.attr('href')
           } else {
-            p.title = parseText(info)
+            p.title = parseText(prune(info, '.sr-only'))
           }
           if (p.title) {
             const [, , season, episode] = p.title.match(/( S(\d+))?, Ep\. (\d+)/) || [
@@ -68,23 +67,25 @@ module.exports = {
         })
       if (queues.length) {
         await doFetch(queues, (queue, res) => {
-          const $ = cheerio.load(res)
-          const img = $('#main-content > div > div:nth-child(1) img')
-          const info = $('#main-content > div > div:nth-child(2)')
-          const title = parseText(info.find('h2:nth-child(2)'))
-          if (!queue.i.title.startsWith(title) && !queue.i.title.startsWith('LIVE ')) {
-            queue.i.subTitle = parseText(info.find('h2:nth-child(2)'))
+          if (res) {
+            $ = cheerio.load(res)
+            const info = $('#main-content > div > div:nth-child(2)')
+            // program description
+            const desc = info.find('div[class=""] > p')
+            if (desc.length) {
+              queue.i.description = parseText(prune(desc, '.hide'))
+            }
+            // program categories
+            const cat = info.find('div[class=""] > a')
+            if (cat.length) {
+              queue.i.categories = cat.toArray().map(el => parseText($(el)))
+            }
+            // program image
+            const img = $('#main-content > div > div:nth-child(1) img')
+            if (img.length) {
+              queue.i.image = img.attr('src')
+            }
           }
-          const desc1 = parseText(info.find('div[class=""]:nth-child(3)'))
-          const desc2 = parseText(info.find('div[class=""]:nth-child(4)'))
-          if (desc2 == '') {
-            queue.i.description = desc1.replace('TiViE.id | ', '')
-          } else {
-            queue.i.description = desc2.replace('TiViE.id | ', '')
-            queue.i.date = parseText(info.find('h2:nth-child(3)'))
-          }
-          queue.i.categories = parseText(info.find('div[class=""]:nth-child(1)')).split(', ')
-          queue.i.image = img.length ? img.attr('src') : null
         })
       }
       // fill start-stop
@@ -118,7 +119,7 @@ module.exports = {
       const url = $item.attr('href')
       return {
         lang,
-        site_id: url.substr(url.lastIndexOf('/') + 1),
+        site_id: url.substr(url.lastIndexOf('/') + 1, url.lastIndexOf('?') - url.lastIndexOf('/') - 1),
         name: $item.find('strong').text()
       }
     })
@@ -128,14 +129,18 @@ module.exports = {
 }
 
 function parseText($item) {
-  let text = $item.text().replace(/\t/g, '').replace(/\n/g, ' ').trim()
-  while (true) {
-    if (text.match(/\s\s/)) {
-      text = text.replace(/\s\s/g, ' ')
-      continue
-    }
-    break
-  }
+  return $item.text()
+    .replace(/\t/g, '')
+    .replace(/\n/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
 
-  return text
+function prune($item, selector) {
+  if ($) {
+    $item.find(selector)
+      .toArray()
+      .forEach(el => $(el).remove())
+  }
+  return $item
 }

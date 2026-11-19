@@ -41,6 +41,7 @@ module.exports = {
   async channels({ provider }) {
     const providers = {
       pluto: [
+        { path: 'PlutoTV/ar', lang: 'es' },
         { path: 'PlutoTV/br', lang: 'pt' },
         { path: 'PlutoTV/ca', lang: 'en' },
         { path: 'PlutoTV/cl', lang: 'es' },
@@ -59,6 +60,8 @@ module.exports = {
         { path: 'Plex/au', lang: 'en' },
         { path: 'Plex/ca', lang: 'en' },
         { path: 'Plex/es', lang: 'es' },
+        { path: 'Plex/fr', lang: 'fr' },
+        { path: 'Plex/gb', lang: 'en' },
         { path: 'Plex/mx', lang: 'es' },
         { path: 'Plex/nz', lang: 'en' },
         { path: 'Plex/us', lang: 'en' }
@@ -77,16 +80,14 @@ module.exports = {
         { path: 'SamsungTVPlus/us', lang: 'en' }
       ],
       skygo: [{ path: 'SkyGo/epg', lang: 'en' }],
-      stirr: [{ path: 'Stirr/all', lang: 'en' }],
       foxtel: [{ path: 'Foxtel/epg', lang: 'en' }],
       binge: [{ path: 'Binge/epg', lang: 'en' }],
       dstv: [{ path: 'DStv/za', lang: 'en' }],
       flash: [{ path: 'Flash/epg', lang: 'en' }],
       kayo: [{ path: 'Kayo/epg', lang: 'en' }],
       metv: [{ path: 'MeTV/epg', lang: 'en' }],
-      optus: [{ path: 'Optus/epg', lang: 'en' }],
       pbs: [{ path: 'PBS/all', lang: 'en' }],
-      roku: [{ path: 'Roku/epg', lang: 'en' }],
+      roku: [{ path: 'Roku/all', lang: 'en' }],
       singtel: [{ path: 'Singtel/epg', lang: 'en' }],
       skysportnow: [{ path: 'SkySportNow/epg', lang: 'en' }],
       au: [
@@ -104,21 +105,31 @@ module.exports = {
     }
 
     const channels = []
+    const added = new Set()
 
     const providerOptions = providers[provider]
     for (const option of providerOptions) {
       const xml = await axios
         .get(`${API_ENDPOINT}/${option.path}.xml`)
         .then(r => r.data)
-        .catch(console.error)
+        .catch(err => {
+          console.error(`Error fetching ${option.path}: ${err.message}`)
+          return null
+        })
+      if (!xml) continue
+
       const data = parser.parse(xml)
 
       data.channels.forEach(item => {
-        channels.push({
-          lang: option.lang,
-          site_id: `${option.path}#${item.id}`,
-          name: item.name[0].value
-        })
+        const site_id = `${option.path}#${item.id}`
+        if (!added.has(site_id)) {
+          added.add(site_id)
+          channels.push({
+            lang: option.lang,
+            site_id,
+            name: item.displayName?.[0]?.value || item.name?.[0]?.value || item.id
+          })
+        }
       })
     }
 
@@ -167,8 +178,10 @@ function parseItems(content, channel, date) {
   try {
     const curr_day = date
     const next_day = date.add(1, 'd')
-    const [, site_id] = channel.site_id.split('#')
-    const data = parser.parse(content)
+    const [path, site_id] = channel.site_id.split('#')
+    const programmes = indexProgrammes(path, content).get(site_id)
+    if (!programmes) return []
+    const data = parser.parse(`<tv>${programmes.join('')}</tv>`)
     if (!data || !Array.isArray(data.programs)) return []
 
     return data.programs
@@ -185,4 +198,36 @@ function parseItems(content, channel, date) {
   } catch {
     return []
   }
+}
+
+// Each platform file is up to 100MB, and parsing all of it for every channel and day runs the
+// grabber out of memory. Index its <programme> elements by channel once per download instead, and
+// parse only the requested channel's.
+const indexes = new Map()
+
+function indexProgrammes(path, content) {
+  const xml = content.toString()
+  const cached = indexes.get(path)
+  if (cached && cached.length === xml.length) return cached.byChannel
+
+  const byChannel = new Map()
+  for (const [element] of xml.matchAll(/<programme\b[^>]*?(?:\/>|>[\s\S]*?<\/programme>)/g)) {
+    const match = element.match(/\bchannel="([^"]*)"/)
+    if (!match) continue
+    const id = unescapeXml(match[1])
+    if (!byChannel.has(id)) byChannel.set(id, [])
+    byChannel.get(id).push(element)
+  }
+  indexes.set(path, { length: xml.length, byChannel })
+
+  return byChannel
+}
+
+function unescapeXml(value) {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
 }

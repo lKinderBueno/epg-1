@@ -21,7 +21,9 @@ axios.post.mockImplementation((url, data, params) => {
           'sec-fetch-mode': 'cors',
           'sec-fetch-site': 'same-origin',
           'x-requested-with': 'XMLHttpRequest',
-          Referer: 'https://www.dishtv.in/channel-guide.html'
+          Referer: 'https://www.dishtv.in/channel-guide.html',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'
         }
       })
   ) {
@@ -74,8 +76,8 @@ it('can parse response', () => {
 
   expect(results.length).toBe(16)
   expect(results[0]).toMatchObject({
-    start: '2025-01-26T00:30:00.000Z',
-    stop: '2025-01-26T02:05:00.000Z',
+    start: '2025-01-25T19:00:00.000Z',
+    stop: '2025-01-25T20:35:00.000Z',
     title: [
       { lang: 'en', value: 'Train to Busan 2: Peninsula' },
       { lang: 'hi', value: 'ट्रेन टू बुसान 2: पेनीनसुला' },

@@ -3,11 +3,13 @@ const fs = require('fs')
 const path = require('path')
 const dayjs = require('dayjs')
 const utc = require('dayjs/plugin/utc')
+const timezone = require('dayjs/plugin/timezone')
 const customParseFormat = require('dayjs/plugin/customParseFormat')
 dayjs.extend(customParseFormat)
 dayjs.extend(utc)
+dayjs.extend(timezone)
 
-jest.useFakeTimers().setSystemTime(new Date('2025-01-15'))
+jest.useFakeTimers().setSystemTime(dayjs.utc('2025-01-15').valueOf())
 
 const date = dayjs.utc('2025-01-17', 'YYYY-MM-DD').startOf('d')
 const channel = {
@@ -74,6 +76,29 @@ it('can parse response', () => {
     ],
     icon: 'https://jiotvimages.cdn.jio.com/dare_images/shows/700/-/2025-01-17/250117146045_s.jpg',
     image: 'https://jiotvimages.cdn.jio.com/dare_images/shows/700/-/2025-01-17/250117146045.jpg'
+  })
+})
+
+it('can parse images served from the epgdata path', () => {
+  const content = JSON.stringify({
+    epg: [
+      {
+        showname: 'Power Lunch',
+        director: '',
+        starCast: '',
+        episodeThumbnail: 'epgdata/0e9fd651fd47416d3308954342235146.jpg',
+        episodePoster: 'epgdata/0e9fd651fd47416d3308954342235146.jpg',
+        startEpoch: 1753641000000,
+        endEpoch: 1753642800000
+      }
+    ]
+  })
+
+  const results = parser({ content })
+
+  expect(results[0]).toMatchObject({
+    icon: 'https://jiotvimages.cdn.jio.com/epgdata/0e9fd651fd47416d3308954342235146.jpg',
+    image: 'https://jiotvimages.cdn.jio.com/epgdata/0e9fd651fd47416d3308954342235146.jpg'
   })
 })
 

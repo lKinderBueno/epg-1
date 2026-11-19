@@ -7,7 +7,7 @@ module.exports = {
   site: 'starhubtvplus.com',
   days: 2,
   url({ date, channel }) {
-    return `https://waf-starhub-metadata-api-p001.ifs.vubiquity.com/v3.1/epg/schedules?locale=${
+    return `https://waf-starhub-metadata-api-p001.sh-ifs.com/v3.1/epg/schedules?locale=${
       languages[channel.lang]
     }&locale_default=${languages[channel.lang]}&device=1&in_channel_id=${
       channel.site_id
@@ -46,8 +46,8 @@ module.exports = {
 
     return programs.map(item => {
       return {
-        title: item.title,
-        subTitle: item.serie_title,
+        title: item.serie_title || item.title,
+        subTitle: (item.serie_title && item.title && item.serie_title !== item.title) ? item.title : null,
         description: item.description,
         category: item.genres,
         image: item.pictures?.map(img => img.url),
@@ -65,7 +65,7 @@ module.exports = {
     while (true) {
       const items = await axios
         .get(
-          `https://waf-starhub-metadata-api-p001.ifs.vubiquity.com/v3.1/epg/channels?locale=${languages[lang]}&locale_default=${languages[lang]}&device=1&limit=50&page=${page}`
+          `https://waf-starhub-metadata-api-p001.sh-ifs.com/v3.1/epg/channels?locale=${languages[lang]}&locale_default=${languages[lang]}&device=1&limit=50&page=${page}`
         )
         .then(r => r.data)
         .catch(console.error)

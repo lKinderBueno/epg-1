@@ -5,6 +5,11 @@ const parseDuration = require('parse-duration').default
 
 dayjs.extend(utc)
 
+const HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'
+}
+
 module.exports = {
   site: 'freeview.co.uk',
   days: 2,
@@ -14,37 +19,49 @@ module.exports = {
 
     return `https://www.freeview.co.uk/api/tv-guide?nid=${networkId}&start=${startTimestamp}`
   },
-  parser({ content, channel }) {
+  async parser({ content, channel }) {
     let programs = []
     let items = parseItems(content, channel)
-    items.forEach(item => {
+    for (const item of items) {
       const start = parseStart(item)
       const duration = parseDuration(item.duration)
       const stop = start.add(duration, 'ms')
+      const details = await loadProgramDetails(item)
+      const synopsis = details?.synopsis
       programs.push({
         title: item.main_title,
         subtitle: item.secondary_title,
+        description: synopsis?.long || synopsis?.medium || synopsis?.short || null,
         image: parseImage(item),
         start,
         stop
       })
-    })
+    }
 
     return programs
   },
   async channels() {
-    const networkId = '64257' // Great London
     const startTimestamp = dayjs.utc().startOf('d').unix()
-    const data = await axios
-      .get(`https://www.freeview.co.uk/api/tv-guide?nid=${networkId}&start=${startTimestamp}`)
-      .then(r => r.data)
-      .catch(console.log)
+    let channels = []
+    for (let networkId = 64257; networkId <= 64425; networkId++) { // loop through all valid networkIds starting from 64257 (Greater London) to 64425 (Belfast) to ensure we can get all the channels available on freeview
+      console.log(networkId)
+      const data = await axios
+        .get(`https://www.freeview.co.uk/api/tv-guide?nid=${networkId}&start=${startTimestamp}`, {
+          headers: HEADERS
+        })
+        .then(r => r.data)
+        .catch(console.log)
 
-    return data.data.programs.map(item => ({
-      lang: 'en',
-      site_id: `${networkId}#${item.service_id}`,
-      name: item.title
-    }))
+      channels = channels.concat(data.data.programs.map(item => ({
+        lang: 'en',
+        site_id: `${networkId}#${item.service_id}`,
+        name: item.title
+      })))
+    }
+    const uniqueServiceIds = Array.from(new Set(channels.map(c => c.site_id.split('#')[1])))
+    return uniqueServiceIds.map(serviceId => {
+      return channels.find(c => c.site_id.split('#')[1] === serviceId)
+    })
   }
 }
 
@@ -70,4 +87,16 @@ function parseItems(content, channel) {
   } catch {
     return []
   }
+}
+
+async function loadProgramDetails(item) {
+  const url = `https://www.freeview.co.uk/api/program?pid=${item.program_id}&start_time=${item.start_time}&duration=${item.duration}`
+  const data = await axios
+    .get(url, { headers: HEADERS })
+    .then(r => {
+      const programs = r?.data?.data?.programs
+      return Array.isArray(programs) && programs.length > 0 ? programs[0] : {}
+    })
+    .catch(console.log)
+  return data || {}
 }

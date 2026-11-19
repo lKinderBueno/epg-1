@@ -20,17 +20,17 @@ Make sure that the desired channel is not already in the list. If it is not, sim
 <?xml version="1.0" encoding="UTF-8"?>
 <channels>
   ...
-  <channel site="SITE" lang="LANGUAGE_CODE" xmltv_id="CHANNEL_ID" site_id="SITE_ID">CHANNEL_NAME</channel>
+  <channel site="SITE" site_id="SITE_ID" lang="LANGUAGE_CODE" xmltv_id="STREAM_ID">CHANNEL_NAME</channel>
 </channels>
 ```
 
-| Attribute     | Description                                                                                                                                   | Example       |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| SITE          | Site domain name.                                                                                                                             | `example.com` |
-| LANGUAGE_CODE | Language of the guide ([ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code).                                              | `en`          |
-| CHANNEL_ID    | ID of the channel. Full list of supported channels with corresponding ID could be found on [iptv-org.github.io](https://iptv-org.github.io/). | `HBO.us@East` |
-| SITE_ID       | Unique ID of the channel used in the source.                                                                                                  | `hbo`         |
-| CHANNEL_NAME  | Name of the channel used in the source.                                                                                                       | `HBO East`    |
+| Attribute     | Description                                                                                                                                                                                             | Example       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| SITE          | Site domain name.                                                                                                                                                                                       | `example.com` |
+| SITE_ID       | Unique ID of the channel used in the source.                                                                                                                                                            | `hbo`         |
+| LANGUAGE_CODE | Language of the guide ([ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) code).                                                                                                        | `en`          |
+| STREAM_ID     | ID of the stream (`<CHANNEL_ID>@<FEED_ID>`) for which the guide is intended. Full list of supported channels with corresponding ID could be found on [iptv-org.github.io](https://iptv-org.github.io/). | `HBO.us@East` |
+| CHANNEL_NAME  | Name of the channel used in the source.                                                                                                                                                                 | `HBO East`    |
 
 After that just [commit](https://docs.github.com/en/pull-requests/committing-changes-to-your-project/creating-and-editing-commits/about-commits) all changes and send a [pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests).
 
@@ -66,9 +66,16 @@ module.exports = {
 }
 ```
 
-### Context Object
+### Request Context Object
 
-From each function in `config.js` you can access a `context` object containing the following data:
+Inside `url()`, `logo()`, `request.data()`, `request.headers()` functions in `*.config.js` you can access a `context` object containing the following data:
+
+- `channel`: The object describing the current channel (xmltv_id, site_id, name, lang)
+- `date`: The 'dayjs' instance with the requested date
+
+## Parser Context Object
+
+Inside `parser()` function in `*.config.js` you can access a `context` object containing the following data:
 
 - `channel`: The object describing the current channel (xmltv_id, site_id, name, lang)
 - `date`: The 'dayjs' instance with the requested date
@@ -336,7 +343,7 @@ https://example.com
 ### Download the guide
 
 ```sh
-npm run grab --- --site=example.com
+npm run grab --- --sites=example.com
 ```
 
 ### Test
@@ -400,6 +407,40 @@ This way, you can map channels by simply selecting the proper ID from the list:
 
 Once complete, [commit](https://docs.github.com/en/pull-requests/committing-changes-to-your-project/creating-and-editing-commits/about-commits) all changes and send a [pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests).
 
+### How to add my server to the GUIDES.md?
+
+To do this, you just need to place the `worker.json` file in a public directory on your server.
+
+<details>
+<summary>worker.json</summary>
+<br>
+
+```json
+{
+  "channels": "path/to/channels.xml",
+  "guide": "path/to/guide.xml"
+}
+```
+
+If you generate a guide in multiple formats, you can specify the paths to all the files as follows:
+
+```json
+{
+  "channels": "path/to/channels.xml",
+  "guide": {
+    "xml": "path/to/guide.xml",
+    "gzip": "path/to/guide.xml.gz",
+    "json": "path/to/guide.json"
+  }
+}
+```
+
+</details>
+
+And then add server domain or IP address to the [workers.txt](workers.txt) file.
+
+Once your request is approved, it will automatically be added to the [GUIDES.md](GUIDES.md).
+
 ## Project Structure
 
 - `.github/`
@@ -410,8 +451,10 @@ Once complete, [commit](https://docs.github.com/en/pull-requests/committing-chan
 - `sites/`: contains configurations, channel lists and tests for all sites.
 - `tests/`: contains tests to check the scripts.
 - `CONTRIBUTING.md`: file you are currently reading.
+- `GUIDES.md`: list of all available guides and their current status.
 - `README.md`: project description displayed on the home page.
 - `SITES.md`: list of all supported sites and their current status.
+- `workers.txt`: list of all available community workers.
 
 ## Scripts
 
@@ -424,13 +467,16 @@ To run scripts use the `npm run <script-name>` command.
 - `act:check`: allows to test the [check](https://github.com/iptv-org/iptv/blob/master/.github/workflows/check.yml) workflow locally. Depends on [nektos/act](https://github.com/nektos/act).
 - `act:update`: allows to test the [update](https://github.com/iptv-org/iptv/blob/master/.github/workflows/update.yml) workflow locally. Depends on [nektos/act](https://github.com/nektos/act).
 - `api:load`: downloads the latest channels data from the [iptv-org/api](https://github.com/iptv-org/api).
-- `api:generate`: generates a JSON file with all channels for the [iptv-org/api](https://github.com/iptv-org/api) repository.
 - `channels:lint`: сhecks the channel lists for syntax errors.
 - `channels:parse`: generates a list of channels based on the site configuration.
+- `channels:format`: formats `*.channels.xml` files. The process involves removing invalid `xmltv_id`, adding missing Feed ID, and sorting the list.
 - `channels:edit`: utility for quick channels mapping.
 - `channels:validate`: checks the description of channels for errors.
 - `sites:init`: creates a new site config from the template.
 - `sites:update`: updates the list of sites and their status in [SITES.md](SITES.md).
+- `guides:update`: updates the list of guides and their status in [GUIDES.md](GUIDES.md).
+- `guides:export`: exports a list of all guides in JSON format for the [iptv-org/api](https://github.com/iptv-org/api) repository.
+- `workers:load`: loads a list of all workers and their configurations.
 - `grab`: downloads a program from a specified source.
 - `serve`: starts the [web server](https://github.com/vercel/serve).
 - `lint`: сhecks the scripts for syntax errors.
